@@ -1,0 +1,51 @@
+LSTM Model Architecture
+=====================
+
+Input Features (5)          Sequence Length (10)          Output Classes (5)
+------------------          ------------------          ------------------
+[Heart Rate]                                           [0: Neutral]
+[HRV]                    [t-9][t-8]...[t-1][t]       [1: Focus]
+[Steps]           →      (10 time steps of            [2: Fatigue]
+[Sleep Hours]            5 features each)             [3: Stress]
+[Hour of Day]                                         [4: Emergency]
+
+
+Layer-by-Layer Architecture
+-------------------------
+
+[Input Layer]
+     ↓
+     ↓  Shape: [batch_size, 10, 5]
+     ↓
+[LSTM Layer 1]  →→→  64 units
+     ↓
+     ↓  Shape: [batch_size, 64]
+     ↓
+[LSTM Layer 2]  →→→  64 units
+     ↓
+     ↓  Shape: [batch_size, 64]
+     ↓
+[Dropout Layer] →→→  20% dropout
+     ↓
+     ↓  Shape: [batch_size, 64]
+     ↓
+[Dense Layer]   →→→  64 → 16 units
+     ↓
+     ↓  Shape: [batch_size, 16]
+     ↓
+[ReLU]         →→→  Activation
+     ↓
+     ↓  Shape: [batch_size, 16]
+     ↓
+[Output Layer] →→→  16 → 5 units + Softmax
+     ↓
+     ↓  Shape: [batch_size, 5]
+     ↓
+[Final Output]  →→→  Probabilities for 5 classes
+
+Notes:
+- Each LSTM layer processes the sequence and learns temporal patterns
+- Dropout helps prevent overfitting
+- Dense layers reduce dimensionality and create final classification
+- ReLU adds non-linearity
+- Softmax ensures output probabilities sum to 1 

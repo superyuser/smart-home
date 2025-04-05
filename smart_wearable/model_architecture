@@ -1,0 +1,51 @@
+// LSTM Model Architecture
+digraph {
+	rankdir=TB
+	node [fillcolor=lightblue shape=rectangle style="rounded,filled"]
+	input [label="Input
+(10 timesteps × 5 features)
+[batch_size, 10, 5]"]
+	node [fillcolor=lightgreen shape=rectangle style="rounded,filled"]
+	lstm1 [label="LSTM Layer 1
+64 units"]
+	lstm2 [label="LSTM Layer 2
+64 units"]
+	node [fillcolor=lightpink shape=rectangle style="rounded,filled"]
+	dropout [label="Dropout Layer
+(20% dropout)"]
+	node [fillcolor=lightyellow shape=rectangle style="rounded,filled"]
+	fc1 [label="Fully Connected
+64 → 16 units"]
+	node [fillcolor=lightgray shape=rectangle style="rounded,filled"]
+	relu [label="ReLU Activation"]
+	node [fillcolor=lightcoral shape=rectangle style="rounded,filled"]
+	output [label="Output Layer
+16 → 5 classes
+Softmax"]
+	input -> lstm1
+	lstm1 -> lstm2
+	lstm2 -> dropout
+	dropout -> fc1
+	fc1 -> relu
+	relu -> output
+	subgraph cluster_0 {
+		label="Input Features"
+		node [fillcolor=white shape=rectangle style=filled]
+		feature_0 [label="Heart Rate"]
+		feature_1 [label=HRV]
+		feature_2 [label=Steps]
+		feature_3 [label="Sleep Hours"]
+		feature_4 [label="Hour of Day"]
+		rank=same
+	}
+	subgraph cluster_1 {
+		label="Output Classes"
+		node [fillcolor=white shape=rectangle style=filled]
+		class_0 [label=Neutral]
+		class_1 [label=Focus]
+		class_2 [label=Fatigue]
+		class_3 [label=Stress]
+		class_4 [label=Emergency]
+		rank=same
+	}
+}

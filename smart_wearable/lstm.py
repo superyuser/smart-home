@@ -59,7 +59,7 @@ def load_and_preprocess_data():
     # Convert timestamp to hour of day (0-23) to capture daily patterns
     df['hour'] = pd.to_datetime(df['timestamp']).dt.hour
     
-    # Normalize features using MinMaxScaler
+    # Normalize features using MinMaxScaler (range: 0-1)
     scaler = MinMaxScaler()
     features = ['heart_rate', 'hrv', 'steps', 'sleep_hours', 'hour']
     df_scaled = pd.DataFrame(scaler.fit_transform(df[features]), columns=features)
