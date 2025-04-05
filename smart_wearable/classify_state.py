@@ -1,6 +1,9 @@
 # classifier.py
 import requests
 from time import time
+from chip.clusters import Objects as Clusters
+from chip import ChipDeviceCtrl
+import asyncio
 
 # Cache last trigger to avoid spamming Home Assistant
 last_triggered = {"state": None, "timestamp": 0}
@@ -12,6 +15,80 @@ def should_trigger(new_state):
         last_triggered["timestamp"] = now
         return True
     return False
+
+class MatterLightController:
+    def __init__(self, setup_code="10602235997"):
+        self.setup_code = setup_code
+        self.controller = None
+        self.device = None
+        
+        # State to lighting mapping
+        self.lighting_states = {
+            "focus": {
+                "brightness": 90,  # 90% brightness
+                "color_temp": 4000,  # Cool white
+            },
+            "fatigue": {
+                "brightness": 30,  # 30% brightness
+                "color_temp": 2700,  # Warm white
+            },
+            "stress": {
+                "brightness": 50,  # 50% brightness
+                "color_temp": 2200,  # Very warm amber
+            },
+            "neutral": {
+                "brightness": 70,
+                "color_temp": 3000,
+            }
+        }
+
+    async def connect(self):
+        """Initialize connection to Matter light"""
+        try:
+            self.controller = ChipDeviceCtrl.ChipDeviceController()
+            self.device = await self.controller.CommissionDevice(
+                setupPayload=self.setup_code,
+                nodeid=1,  # Node ID for the light
+            )
+            print("✅ Connected to Matter light")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to connect to Matter light: {e}")
+            return False
+
+    async def apply_lighting_state(self, state):
+        """Apply lighting settings based on emotional state"""
+        if not self.device:
+            if not await self.connect():
+                return
+            
+        settings = self.lighting_states.get(state, self.lighting_states["neutral"])
+        
+        try:
+            # Convert brightness percentage to Matter's 0-254 range
+            brightness = int((settings["brightness"] / 100) * 254)
+            
+            # Set brightness
+            await self.device.WriteAttribute(
+                Clusters.OnOff.Cluster,
+                [(Clusters.OnOff.Attributes.OnOff, True)]  # Turn on
+            )
+            await self.device.WriteAttribute(
+                Clusters.LevelControl.Cluster,
+                [(Clusters.LevelControl.Attributes.CurrentLevel, brightness)]
+            )
+            
+            # Set color temperature
+            color_temp = settings["color_temp"]
+            await self.device.WriteAttribute(
+                Clusters.ColorControl.Cluster,
+                [(Clusters.ColorControl.Attributes.ColorTemperatureMireds, color_temp)]
+            )
+            
+            print(f"✅ Applied {state} lighting state")
+            
+        except Exception as e:
+            print(f"❌ Failed to apply lighting state: {e}")
 
 def classify_state(data, baseline):
     hr = data['heart_rate']
@@ -51,30 +128,11 @@ def classify_state(data, baseline):
     else:
         return "neutral"
 
-def send_webhook(state):
-    webhook_map = {
-        "focus": "focus_triggered",
-        "fatigue": "fatigue_triggered",
-        "stress": "stress_triggered"
-    }
-
-    webhook_id = webhook_map.get(state)
-    if not webhook_id:
-        print("Unknown state or no action.")
-        return
-
-    url = f"http://localhost:8123/api/webhook/{webhook_id}"
-    try:
-        r = requests.post(url)
-        if r.status_code == 200:
-            print(f"✅ Triggered: {webhook_id}")
-        else:
-            print(f"⚠️ Webhook error: {r.status_code}")
-    except Exception as e:
-        print("❌ Webhook failed:", e)
-
-if __name__ == "__main__":
-    # Example input from simulated or real data
+async def main():
+    # Initialize Matter light controller
+    light_controller = MatterLightController()
+    
+    # Example input data
     input_data = {
         "heart_rate": 95,
         "hrv": 35,
@@ -87,8 +145,37 @@ if __name__ == "__main__":
         "hrv": 60
     }
 
+    # Classify state and apply lighting
     state = classify_state(input_data, user_baseline)
     print("Current state:", state)
+    
+    # Apply the lighting state
+    await light_controller.apply_lighting_state(state)
 
-    if should_trigger(state):
-        send_webhook(state)
+if __name__ == "__main__":
+    asyncio.run(main())
+
+# def send_webhook(state):
+#     webhook_map = {
+#         "focus": "focus_triggered",
+#         "fatigue": "fatigue_triggered",
+#         "stress": "stress_triggered"
+#     }
+
+#     webhook_id = webhook_map.get(state)
+#     if not webhook_id:
+#         print("Unknown state or no action.")
+#         return
+
+#     url = f"http://localhost:8123/api/webhook/{webhook_id}"
+#     try:
+#         r = requests.post(url)
+#         if r.status_code == 200:
+#             print(f"✅ Triggered: {webhook_id}")
+#         else:
+#             print(f"⚠️ Webhook error: {r.status_code}")
+#     except Exception as e:
+#         print("❌ Webhook failed:", e)
+
+# if __name__ == "__main__":
+#     # Example input from simulated or real data

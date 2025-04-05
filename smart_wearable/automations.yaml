@@ -7,9 +7,14 @@
   action:
     - service: light.turn_on
       data:
-        entity_id: light.vibelens_desk
+        entity_id: 
+          - light.vibelens_desk
+          - light.matter_bulb
         brightness_pct: 90
         color_temp: 250
+    - service: switch.turn_on
+      data:
+        entity_id: switch.matter_switch
     - service: media_player.volume_set
       data:
         entity_id: media_player.ambient_speaker
@@ -22,9 +27,14 @@
   action:
     - service: light.turn_on
       data:
-        entity_id: light.vibelens_desk
+        entity_id:
+          - light.vibelens_desk
+          - light.matter_bulb
         brightness_pct: 30
         color_temp: 420
+    - service: switch.turn_off
+      data:
+        entity_id: switch.matter_switch
     - service: media_player.play_media
       data:
         entity_id: media_player.ambient_speaker
@@ -38,11 +48,52 @@
   action:
     - service: light.turn_on
       data:
-        entity_id: light.vibelens_desk
+        entity_id:
+          - light.vibelens_desk
+          - light.matter_bulb
         brightness_pct: 50
         color_temp: 375
+    - service: switch.turn_off
+      data:
+        entity_id: switch.matter_switch
     - service: media_player.play_media
       data:
         entity_id: media_player.ambient_speaker
         media_content_type: music
         media_content_id: "https://example.com/calming.mp3"
+
+# New automations for Matter switch interactions
+
+- alias: Power Switch Manual Toggle
+  trigger:
+    platform: state
+    entity_id: switch.matter_switch
+  action:
+    - service: light.turn_on
+      data:
+        entity_id: light.matter_bulb
+        brightness_pct: >
+          {% if trigger.to_state.state == 'on' %}
+            100
+          {% else %}
+            0
+          {% endif %}
+
+- alias: Evening Wind Down
+  trigger:
+    platform: time
+    at: '21:00:00'
+  condition:
+    condition: state
+    entity_id: switch.matter_switch
+    state: 'on'
+  action:
+    - service: light.turn_on
+      data:
+        entity_id: light.matter_bulb
+        brightness_pct: 40
+        color_temp: 400
+    - service: switch.turn_off
+      data:
+        entity_id: switch.matter_switch
+      delay: '02:00:00'
