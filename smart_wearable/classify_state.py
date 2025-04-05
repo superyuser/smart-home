@@ -16,6 +16,7 @@ def should_trigger(new_state):
         return True
     return False
 
+# --------------- THIS CONTROLS LIGHT ---------------------------------
 class MatterLightController:
     def __init__(self, setup_code="10602235997"):
         self.setup_code = setup_code
@@ -89,6 +90,53 @@ class MatterLightController:
             
         except Exception as e:
             print(f"❌ Failed to apply lighting state: {e}")
+
+# ------------------- THIS CONTROLS FAN -----------------------------
+class MatterFanController:
+    def __init__(self, setup_code="123456789", nodeid=2):
+        self.setup_code = setup_code
+        self.nodeid = nodeid
+        self.controller = None
+        self.device = None
+
+        self.state_map = {
+            "focus": True,     # fan ON
+            "stress": True,    # fan ON
+            "fatigue": False,  # fan OFF
+            "neutral": False   # fan OFF
+        }
+
+    async def connect(self):
+        """Connect to the Matter fan device."""
+        try:
+            self.controller = ChipDeviceCtrl.ChipDeviceController()
+            self.device = await self.controller.CommissionDevice(
+                setupPayload=self.setup_code,
+                nodeid=self.nodeid,
+            )
+            print("✅ Connected to Matter fan")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to connect to fan: {e}")
+            return False
+
+    async def apply_state(self, state):
+        """Turn the fan ON or OFF based on emotional state."""
+        if not self.device:
+            if not await self.connect():
+                return
+
+        power = self.state_map.get(state, False)
+
+        try:
+            await self.device.WriteAttribute(
+                Clusters.OnOff.Cluster,
+                [(Clusters.OnOff.Attributes.OnOff, power)]
+            )
+            print(f"✅ Fan turned {'ON' if power else 'OFF'} for state: {state}")
+        except Exception as e:
+            print(f"❌ Failed to control fan: {e}")
+
 
 def classify_state(data, baseline):
     hr = data['heart_rate']

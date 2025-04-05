@@ -3,78 +3,158 @@
 <head>
   <meta charset="UTF-8" />
   <title>3D Focus-Fatigue-Stress Plot</title>
-
-  <!-- ✅ Load PapaParse FIRST -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
-  <!-- ✅ Then Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
   <style>
-    body { margin: 0; overflow: hidden; }
+    body { margin: 0; overflow: hidden; background-color: #000; }
     canvas { display: block; }
   </style>
 </head>
 <body>
 
-    <script>
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
-      
-        // Axes Helper
-        const axesHelper = new THREE.AxesHelper(5);
-        scene.add(axesHelper);
-      
-        // Load smoothed CSV
-        Papa.parse("smoothed_output.csv", {
-          header: true,
-          download: true,
-          dynamicTyping: true,
-          complete: function(results) {
-            const points = results.data.map(row => {
-              const x = parseFloat(row.focus_smooth) * 5;
-              const y = parseFloat(row.fatigue_smooth) * 5;
-              const z = parseFloat(row.stress_smooth) * 5;
-              return new THREE.Vector3(x, y, z);
-            }).filter(p => !isNaN(p.x) && !isNaN(p.y) && !isNaN(p.z));
-      
-            drawSpline(points);
-          }
-        });
-      
-        function drawSpline(points) {
-          const curve = new THREE.CatmullRomCurve3(points);
-          curve.curveType = 'catmullrom';
-          curve.tension = 0.6;
-          curve.closed = false;
-      
-          const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(300));
-          const material = new THREE.LineBasicMaterial({ color: 0xff6600 });
-          const line = new THREE.Line(geometry, material);
-          scene.add(line);
+<script>
+window.onload = function () {
+  const scene = new THREE.Scene();
+  scene.position.y = -10;
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const axesHelper = new THREE.AxesHelper(20);
+  scene.add(axesHelper);
+
+  // 3D Axis Labels using Sprites
+  const makeTextSprite = (message, color, position) => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    context.font = 'Bold 40px Arial';
+    context.fillStyle = color;
+    context.fillText(message, 10, 50);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(10, 5, 1);
+    sprite.position.copy(position);
+    scene.add(sprite);
+  };
+
+  makeTextSprite('Focus →', '#ffffff', new THREE.Vector3(22, 0, 0));
+  makeTextSprite('Fatigue ↑', '#ffffff', new THREE.Vector3(0, 22, 0));
+  makeTextSprite('Stress ⊙', '#ffffff', new THREE.Vector3(0, 0, 22));
+
+  let animate;
+  let moodData = [];
+  let linePoints = [];
+  let smoothPoints = [];
+  let movingDot;
+
+  function plotPoints(data) {
+    linePoints = [];
+    moodData = [];
+
+    data.forEach(d => {
+      const x = parseFloat(d.focus_smooth) * 50;
+      const y = parseFloat(d.fatigue_smooth) * 50;
+      const z = parseFloat(d.stress_smooth) * 50;
+      if (isNaN(x) || isNaN(y) || isNaN(z)) return;
+
+      linePoints.push(new THREE.Vector3(x, y, z));
+
+      let color = 0x888888;
+      let mood = "neutral";
+      if (z > y && z > x) {
+        color = 0xff0000;
+        mood = "stressed";
+      } else if (y > x) {
+        color = 0xffff00;
+        mood = "fatigued";
+      } else if (x > 0.5) {
+        color = 0x00ff00;
+        mood = "focused";
+      }
+
+      moodData.push({ x, y, z, mood });
+
+      const geo = new THREE.SphereGeometry(0.1, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color });
+      const dot = new THREE.Mesh(geo, mat);
+      dot.position.set(x, y, z);
+      scene.add(dot);
+    });
+
+    const curve = new THREE.CatmullRomCurve3(linePoints);
+    smoothPoints = curve.getPoints(500);
+
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([]);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffff });
+    const splineLine = new THREE.Line(lineGeo, lineMat);
+    scene.add(splineLine);
+
+    let drawIndex = 0;
+    const dotGeo = new THREE.SphereGeometry(0.3, 16, 16);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    movingDot = new THREE.Mesh(dotGeo, dotMat);
+    scene.add(movingDot);
+
+    const drawInterval = setInterval(() => {
+    if (drawIndex >= smoothPoints.length) {
+        clearInterval(drawInterval);
+        return;
+    }
+
+    // Create the partial path to show up to drawIndex
+    const visiblePoints = smoothPoints.slice(0, drawIndex + 1);
+
+    // Only update line if there are 2+ points
+    if (visiblePoints.length > 1) {
+        lineGeo.setFromPoints(visiblePoints);
+    }
+
+    // Move dot with line
+    movingDot.position.copy(smoothPoints[drawIndex]);
+
+    drawIndex += 1; // slow step = 0.05x
+    }, 80); // 1 point every 200ms = ~100 seconds for full 500-point curve
+
+
+
+
+    animate = function () {
+      requestAnimationFrame(animate);
+      scene.rotation.y += 0.002;
+
+      if (smoothPoints.length > 0) {
+        if (drawIndex > 0 && drawIndex < smoothPoints.length) {
+          movingDot.position.copy(smoothPoints[drawIndex - 1]);
         }
-      
-        // Camera and Controls
-        camera.position.set(5, 5, 10);
-        camera.lookAt(0, 0, 0);
-      
-        function animate() {
-          requestAnimationFrame(animate);
-          scene.rotation.y += 0.003;
-          renderer.render(scene, camera);
-        }
-        animate();
-      
-        window.addEventListener('resize', () => {
-          camera.aspect = window.innerWidth / window.innerHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-      </script>
-      
+      }
+
+      renderer.render(scene, camera);
+    };
+  }
+
+  Papa.parse("smoothed_output.csv", {
+    header: true,
+    download: true,
+    dynamicTyping: true,
+    complete: function (results) {
+      plotPoints(results.data);
+      animate();
+    }
+  });
+
+  camera.position.set(25, 25, 35);
+  camera.lookAt(0, 0, 0);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+};
+</script>
 
 </body>
 </html>
