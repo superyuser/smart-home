@@ -1,9 +1,14 @@
 # classifier.py
 import requests
 from time import time
-from chip.clusters import Objects as Clusters
-from chip import ChipDeviceCtrl``
+from matter_server.client.client import MatterClient
 import asyncio
+import logging
+import json
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Cache last trigger to avoid spamming Home Assistant
 last_triggered = {"state": None, "timestamp": 0}
@@ -18,10 +23,13 @@ def should_trigger(new_state):
 
 # --------------- THIS CONTROLS LIGHT ---------------------------------
 class MatterLightController:
-    def __init__(self, setup_code="10602235997"):
-        self.setup_code = setup_code
-        self.controller = None
-        self.device = None
+    def __init__(self, ha_url="http://localhost:8123", ha_token=None):
+        self.ha_url = ha_url
+        self.ha_token = ha_token
+        self.headers = {
+            "Authorization": f"Bearer {ha_token}",
+            "Content-Type": "application/json"
+        }
         
         # State to lighting mapping
         self.lighting_states = {
@@ -44,52 +52,51 @@ class MatterLightController:
         }
 
     async def connect(self):
-        """Initialize connection to Matter light"""
+        """Verify connection to Home Assistant"""
         try:
-            self.controller = ChipDeviceCtrl.ChipDeviceController()
-            self.device = await self.controller.CommissionDevice(
-                setupPayload=self.setup_code,
-                nodeid=1,  # Node ID for the light
+            response = requests.get(
+                f"{self.ha_url}/api/",
+                headers=self.headers
             )
-            print("✅ Connected to Matter light")
-            return True
+            if response.status_code == 200:
+                logger.info("✅ Connected to Home Assistant")
+                return True
+            else:
+                logger.error(f"❌ Failed to connect to Home Assistant: {response.status_code}")
+                return False
         except Exception as e:
-            print(f"❌ Failed to connect to Matter light: {e}")
+            logger.error(f"❌ Failed to connect to Home Assistant: {str(e)}")
             return False
 
     async def apply_lighting_state(self, state):
         """Apply lighting settings based on emotional state"""
-        if not self.device:
-            if not await self.connect():
-                return
+        if not self.ha_token:
+            logger.error("❌ Home Assistant token not set")
+            return
             
         settings = self.lighting_states.get(state, self.lighting_states["neutral"])
         
         try:
-            # Convert brightness percentage to Matter's 0-254 range
-            brightness = int((settings["brightness"] / 100) * 254)
+            # Turn on the light and set brightness
+            data = {
+                "entity_id": "light.matter_light",  # Replace with your light's entity_id
+                "brightness": int((settings["brightness"] / 100) * 255),
+                "color_temp": settings["color_temp"]
+            }
             
-            # Set brightness
-            await self.device.WriteAttribute(
-                Clusters.OnOff.Cluster,
-                [(Clusters.OnOff.Attributes.OnOff, True)]  # Turn on
-            )
-            await self.device.WriteAttribute(
-                Clusters.LevelControl.Cluster,
-                [(Clusters.LevelControl.Attributes.CurrentLevel, brightness)]
-            )
-            
-            # Set color temperature
-            color_temp = settings["color_temp"]
-            await self.device.WriteAttribute(
-                Clusters.ColorControl.Cluster,
-                [(Clusters.ColorControl.Attributes.ColorTemperatureMireds, color_temp)]
+            response = requests.post(
+                f"{self.ha_url}/api/services/light/turn_on",
+                headers=self.headers,
+                json=data
             )
             
-            print(f"✅ Applied {state} lighting state")
+            if response.status_code == 200:
+                logger.info(f"✅ Applied {state} lighting state")
+            else:
+                logger.error(f"❌ Failed to apply lighting state: {response.status_code}")
             
         except Exception as e:
-            print(f"❌ Failed to apply lighting state: {e}")
+            logger.error(f"❌ Failed to apply lighting state: {str(e)}")
 
 # ------------------- THIS CONTROLS FAN -----------------------------
 class MatterFanController:
@@ -200,8 +207,34 @@ async def main():
     # Apply the lighting state
     await light_controller.apply_lighting_state(state)
 
+async def test_light_integration():
+    """Test function to verify Matter light integration"""
+    light_controller = MatterLightController()
+    
+    # Test connection
+    logger.info("\nTesting Matter light connection...")
+    if await light_controller.connect():
+        logger.info("✅ Connection successful")
+    else:
+        logger.error("❌ Connection failed")
+        return
+    
+    # Test each lighting state
+    states = ["focus", "fatigue", "stress", "neutral"]
+    for state in states:
+        logger.info(f"\nTesting {state} state...")
+        await light_controller.apply_lighting_state(state)
+        await asyncio.sleep(2)  # Wait 2 seconds between states
+    
+    logger.info("\nLight integration test complete!")
+    
+    # Clean up
+    if light_controller.client:
+        await light_controller.client.disconnect()
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Run the test
+    asyncio.run(test_light_integration())
 
 # def send_webhook(state):
 #     webhook_map = {
