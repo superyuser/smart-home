@@ -5,6 +5,8 @@ from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+import joblib
+import os
 
 # Constants
 SEQUENCE_LENGTH = 10  # Number of time steps to look back
@@ -12,16 +14,21 @@ NUM_CLASSES = 5      # Number of classification states
 RANDOM_SEED = 42     # For reproducibility
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+# Create directory for saved models if it doesn't exist
+os.makedirs('smart_wearable/saved_models', exist_ok=True)
+
 class HealthDataset(Dataset):
     """Custom Dataset for loading health data sequences"""
-    def __init__(self, sequences, labels):
+    def __init__(self, sequences, labels=None):
         self.sequences = torch.FloatTensor(sequences)
-        self.labels = torch.LongTensor(labels)
+        self.labels = None if labels is None else torch.LongTensor(labels)
 
     def __len__(self):
         return len(self.sequences)
 
     def __getitem__(self, idx):
+        if self.labels is None:
+            return self.sequences[idx]
         return self.sequences[idx], self.labels[idx]
 
 class LSTMClassifier(nn.Module):
@@ -102,6 +109,12 @@ def train_model():
     print("Loading and preprocessing data...")
     features, labels = load_and_preprocess_data()
     
+    # Save the scaler for future use
+    scaler = MinMaxScaler()
+    features_list = ['heart_rate', 'hrv', 'steps', 'sleep_hours', 'hour']
+    scaler.fit(pd.DataFrame(features, columns=features_list))
+    joblib.dump(scaler, 'smart_wearable/saved_models/scaler.save')
+    
     # Create sequences
     print("Creating sequences...")
     X, y = create_sequences(features, labels)
@@ -166,7 +179,109 @@ def train_model():
     accuracy = correct / total
     print(f'Test Accuracy: {accuracy:.4f}')
     
+    # Save the trained model
+    torch.save(model.state_dict(), 'smart_wearable/saved_models/model.pth')
+    print("Model saved to smart_wearable/saved_models/model.pth")
+    
     return model
 
+def predict_state(new_data, model=None):
+    """
+    Make predictions on new health data.
+    
+    Args:
+        new_data (pd.DataFrame): DataFrame with columns ['timestamp', 'heart_rate', 'hrv', 'steps', 'sleep_hours']
+        model (LSTMClassifier, optional): Pre-trained model. If None, loads from saved file.
+    
+    Returns:
+        list: Predicted states for each sequence in the data
+        list: Probability scores for each prediction
+    """
+    # Load the saved model if not provided
+    if model is None:
+        model_path = 'smart_wearable/saved_models/model.pth'
+        if not os.path.exists(model_path):
+            raise FileNotFoundError("No saved model found. Please train the model first.")
+        
+        input_size = 5  # Number of features
+        model = LSTMClassifier(input_size=input_size).to(DEVICE)
+        model.load_state_dict(torch.load(model_path))
+        model.eval()
+    
+    # Load the saved scaler
+    scaler = joblib.load('smart_wearable/saved_models/scaler.save')
+    
+    # Preprocess the new data
+    new_data['hour'] = pd.to_datetime(new_data['timestamp']).dt.hour
+    features = ['heart_rate', 'hrv', 'steps', 'sleep_hours', 'hour']
+    scaled_data = scaler.transform(new_data[features])
+    
+    # Create sequences
+    sequences = []
+    for i in range(len(scaled_data) - SEQUENCE_LENGTH):
+        sequences.append(scaled_data[i:i + SEQUENCE_LENGTH])
+    
+    if not sequences:
+        raise ValueError("Not enough data points to create a sequence. Need at least 10 consecutive readings.")
+    
+    # Create dataset and dataloader
+    predict_dataset = HealthDataset(np.array(sequences))
+    predict_loader = DataLoader(predict_dataset, batch_size=32, shuffle=False)
+    
+    # Make predictions
+    predictions = []
+    probabilities = []
+    
+    with torch.no_grad():
+        for batch_X in predict_loader:
+            if isinstance(batch_X, torch.Tensor):
+                batch_X = batch_X.to(DEVICE)
+            outputs = model(batch_X)
+            probs = torch.softmax(outputs, dim=1)
+            _, predicted = torch.max(outputs.data, 1)
+            
+            predictions.extend(predicted.cpu().numpy())
+            probabilities.extend(probs.cpu().numpy())
+    
+    # Convert numeric predictions to state names
+    state_names = ['Neutral', 'Focus', 'Fatigue', 'Stress', 'Emergency']
+    predicted_states = [state_names[pred] for pred in predictions]
+    
+    return predicted_states, probabilities
+
+def example_prediction():
+    """
+    Example of how to use the prediction function with new data.
+    """
+    # Example new data (should be replaced with real data)
+    example_data = pd.DataFrame({
+        'timestamp': pd.date_range(start='2024-01-01', periods=15, freq='10min'),
+        'heart_rate': np.random.uniform(60, 100, 15),
+        'hrv': np.random.uniform(50, 80, 15),
+        'steps': np.random.uniform(0, 1000, 15),
+        'sleep_hours': np.random.uniform(5, 8, 15)
+    })
+    
+    try:
+        states, probs = predict_state(example_data)
+        print("\nPredictions for new data:")
+        print("-------------------------")
+        for i, (state, prob) in enumerate(zip(states, probs)):
+            print(f"Sequence {i+1}:")
+            print(f"Predicted State: {state}")
+            print(f"Confidence Scores:")
+            for state_name, confidence in zip(['Neutral', 'Focus', 'Fatigue', 'Stress', 'Emergency'], prob):
+                print(f"  {state_name}: {confidence:.2%}")
+            print()
+    except FileNotFoundError:
+        print("Please train the model first using train_model()")
+    except Exception as e:
+        print(f"Error making predictions: {str(e)}")
+
 if __name__ == "__main__":
+    # Train the model
     model = train_model()
+    
+    # Show example prediction
+    print("\nDemonstrating predictions on example data...")
+    example_prediction()
