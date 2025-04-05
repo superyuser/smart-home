@@ -1,0 +1,48 @@
+# automations.yaml
+
+- alias: Focus Mode
+  trigger:
+    platform: webhook
+    webhook_id: focus_triggered
+  action:
+    - service: light.turn_on
+      data:
+        entity_id: light.vibelens_desk
+        brightness_pct: 90
+        color_temp: 250
+    - service: media_player.volume_set
+      data:
+        entity_id: media_player.ambient_speaker
+        volume_level: 0.0
+
+- alias: Fatigue Mode
+  trigger:
+    platform: webhook
+    webhook_id: fatigue_triggered
+  action:
+    - service: light.turn_on
+      data:
+        entity_id: light.vibelens_desk
+        brightness_pct: 30
+        color_temp: 420
+    - service: media_player.play_media
+      data:
+        entity_id: media_player.ambient_speaker
+        media_content_type: music
+        media_content_id: "https://example.com/ambient.mp3"
+
+- alias: Stress Mode
+  trigger:
+    platform: webhook
+    webhook_id: stress_triggered
+  action:
+    - service: light.turn_on
+      data:
+        entity_id: light.vibelens_desk
+        brightness_pct: 50
+        color_temp: 375
+    - service: media_player.play_media
+      data:
+        entity_id: media_player.ambient_speaker
+        media_content_type: music
+        media_content_id: "https://example.com/calming.mp3"
