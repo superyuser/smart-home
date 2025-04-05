@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Focus-Fatigue-Stress Plot</title>
+
+  <!-- ✅ Load PapaParse FIRST -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <!-- ✅ Then Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+      
+        // Axes Helper
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+      
+        // Load smoothed CSV
+        Papa.parse("smoothed_output.csv", {
+          header: true,
+          download: true,
+          dynamicTyping: true,
+          complete: function(results) {
+            const points = results.data.map(row => {
+              const x = parseFloat(row.focus_smooth) * 5;
+              const y = parseFloat(row.fatigue_smooth) * 5;
+              const z = parseFloat(row.stress_smooth) * 5;
+              return new THREE.Vector3(x, y, z);
+            }).filter(p => !isNaN(p.x) && !isNaN(p.y) && !isNaN(p.z));
+      
+            drawSpline(points);
+          }
+        });
+      
+        function drawSpline(points) {
+          const curve = new THREE.CatmullRomCurve3(points);
+          curve.curveType = 'catmullrom';
+          curve.tension = 0.6;
+          curve.closed = false;
+      
+          const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(300));
+          const material = new THREE.LineBasicMaterial({ color: 0xff6600 });
+          const line = new THREE.Line(geometry, material);
+          scene.add(line);
+        }
+      
+        // Camera and Controls
+        camera.position.set(5, 5, 10);
+        camera.lookAt(0, 0, 0);
+      
+        function animate() {
+          requestAnimationFrame(animate);
+          scene.rotation.y += 0.003;
+          renderer.render(scene, camera);
+        }
+        animate();
+      
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      </script>
+      
+
+</body>
+</html>
