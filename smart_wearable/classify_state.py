@@ -2,7 +2,7 @@
 import requests
 from time import time
 from chip.clusters import Objects as Clusters
-from chip import ChipDeviceCtrl
+from chip import ChipDeviceCtrl``
 import asyncio
 
 # Cache last trigger to avoid spamming Home Assistant
