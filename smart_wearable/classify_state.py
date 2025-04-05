@@ -148,7 +148,7 @@ class MatterSmartPlugController:
         except Exception as e:
             print(f"❌ Failed to control {self.name}: {e}")
 
-def classify_state(data, baseline):
+def classify_3_states(data, baseline):
     hr = data['heart_rate']
     hrv = data['hrv']
     steps = data['steps']
@@ -193,7 +193,7 @@ async def main():
         "hrv": 60
     }
 
-    state = classify_state(input_data, user_baseline)
+    state = classify_3_states(input_data, user_baseline)
     print("Current state:", state)
 
     await light_controller.apply_lighting_state(state)
