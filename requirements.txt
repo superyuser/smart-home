@@ -1,6 +1,26 @@
+<<<<<<< HEAD
+<<<<<<< HEAD
+chip-core==0.0.1
+chip-tool==0.0.1
+matter-device-ctrl==0.0.1
+python-matter-server>=7.0.1
+home-assistant-chip-clusters>=2024.11.4
+aiohttp>=3.11.16
+aiorun>=2025.1.1
+async-timeout>=5.0.1
+coloredlogs>=15.0.1
+orjson>=3.10.16 
+=======
+=======
+>>>>>>> c2d5a31c7abfb7995771687b08bfccae1e1c81bb
 numpy>=1.19.2
 pandas>=1.2.0
 scikit-learn>=0.24.0
 torch
 graphviz
+<<<<<<< HEAD
 joblib>=1.2.0 
+>>>>>>> c2d5a31c7abfb7995771687b08bfccae1e1c81bb
+=======
+joblib>=1.2.0 
+>>>>>>> c2d5a31c7abfb7995771687b08bfccae1e1c81bb

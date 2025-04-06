@@ -1,0 +1,40 @@
+# Home Assistant Configuration
+
+# Enable Matter integration
+matter:
+  # Optional: Set the port for the Matter server
+  port: 5580
+
+# Enable the API for external control
+http:
+  # Optional: Set the port for the web interface
+  server_port: 8123
+  # Optional: Set the IP address to bind to
+  server_host: 0.0.0.0
+  # Required for API access
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+
+# Enable the frontend
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Enable the API
+api:
+  # This is required for the Matter integration to work
+  use_connection: true
+
+# Enable the websocket API
+websocket_api:
+  # This is required for real-time updates
+  use_connection: true
+
+# Enable the Matter integration
+default_config:
+
+# Enable the Matter server
+matter_server:
+  # Optional: Set the port for the Matter server
+  port: 5580 
