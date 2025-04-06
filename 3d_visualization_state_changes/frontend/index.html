@@ -121,21 +121,35 @@ window.onload = function () {
 
 
 
+    let lastSpokenState = null;
+
     animate = function () {
-      requestAnimationFrame(animate);
-      scene.rotation.y += 0.002;
+    requestAnimationFrame(animate);
+    scene.rotation.y += 0.002;
 
-      if (smoothPoints.length > 0) {
-        if (drawIndex > 0 && drawIndex < smoothPoints.length) {
-          movingDot.position.copy(smoothPoints[drawIndex - 1]);
+    if (smoothPoints.length > 0 && drawIndex > 0 && drawIndex < smoothPoints.length) {
+        const currentPos = smoothPoints[drawIndex - 1];
+        movingDot.position.copy(currentPos);
+
+        const state = moodData[drawIndex - 1]?.mood?.toLowerCase();
+
+        if (state && state !== lastSpokenState && ["stressed", "fatigued", "emergency"].includes(state)) {
+        lastSpokenState = state;
+
+        fetch("http://localhost:5000/trigger", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state })
+        });
         }
-      }
+    }
 
-      renderer.render(scene, camera);
+    renderer.render(scene, camera);
     };
+
   }
 
-  Papa.parse("smoothed_output.csv", {
+  Papa.parse("trained_labeled_output.csv", {
     header: true,
     download: true,
     dynamicTyping: true,
