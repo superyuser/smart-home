@@ -27,7 +27,7 @@ class MatterLightController:
             "focus": {"brightness": 90, "color_temp": 4000},
             "fatigue": {"brightness": 30, "color_temp": 2700},
             "stress": {"brightness": 50, "color_temp": 2200},
-            "neutral": {"brightness": 70, "color_temp": 3000},
+            "neutral": {"brightness": 70, "color_temp": 3000},                                                                                              
         }
 
     async def connect(self):
@@ -107,7 +107,7 @@ class MatterFanController:
         except Exception as e:
             print(f"❌ Failed to control fan: {e}")
 
-# ------------------- THIS CONTROLS TAPO SMART PLUG -----------------------------
+# ------------------- THIS CONTROLS TAPO SMART PLUG -------------------------
 class MatterSmartPlugController:
     def __init__(self, setup_code="555555555", nodeid=3, name="Smart Plug"):
         self.setup_code = setup_code
